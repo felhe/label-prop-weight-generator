@@ -2,7 +2,9 @@ import random
 
 import networkit as nk
 import numpy as np
+from geopandas import GeoDataFrame
 from networkit import vizbridges
+from shapely import wkt
 
 PERCENTAGE_ZERO = 0.05
 PERCENTAGE_NONZERO = 0.02
@@ -13,6 +15,25 @@ ALPHA = 0.8
 
 def load_nk_graph(graph_name: str, instance_dir: str) -> nk.Graph:
     return nk.readGraph(f"{instance_dir}/{graph_name}.nkb", nk.Format.NetworkitBinary)
+
+
+def load_geometry(graph: nk.Graph, graph_name: str, instance_dir: str):
+    geom = graph.attachEdgeAttribute("geometry", str)
+    geom.read(f"{instance_dir}/{graph_name}.geometry")
+
+
+def plot_graph(graph: nk.Graph):
+    df = GeoDataFrame({"geometry": [], "id": [], "state": []})
+    geom = graph.getEdgeAttribute("geometry", str)
+    state = graph.getEdgeAttribute("state", int)
+    for edge in graph.iterEdges():
+        id = graph.edgeId(*edge)
+        df = df._append({"geometry": geom[edge], "id": int(id), "state": state[edge]}, ignore_index=True)
+    df.geometry = df.geometry.apply(wkt.loads)
+    gdf = GeoDataFrame(df, geometry="geometry", crs="EPSG:3857")
+    # to epsg 4326
+    gdf = gdf.to_crs(epsg=4326)
+    return gdf
 
 
 def label_propagation(graph: nk.Graph, max_iterations: int) -> nk.Graph:
@@ -51,8 +72,11 @@ def label_propagation(graph: nk.Graph, max_iterations: int) -> nk.Graph:
 
 if __name__ == "__main__":
     graph: nk.Graph = load_nk_graph("Bergedorf-Hamburg-Germany", "instances")
-    print(nk.overview(graph))
+    load_geometry(graph, "Bergedorf-Hamburg-Germany", "instances")
     graph.indexEdges()
     label_propagation(graph, ITERATIONS)
-    nk.vizbridges.widgetFromGraph(graph, dimension=nk.vizbridges.Dimension.TwoForcePlotly,
-                                  edgeAttributes=[("state", int)]).show()
+    # nk.vizbridges.widgetFromGraph(graph, dimension=nk.vizbridges.Dimension.TwoForcePlotly,
+    #                               edgeAttributes=[("state", int)]).show()
+    plot_graph(graph).plot(column="state", legend=True).get_figure().show()
+    # make lines thicker
+    (plot_graph(graph).explore(column="state", tiles="CartoDB Positron", style_kwds={"weight": 5}).show_in_browser())
