@@ -5,9 +5,10 @@ import numpy as np
 from geopandas import GeoDataFrame
 from networkit import vizbridges
 from shapely import wkt
+from tqdm import tqdm
 
 PERCENTAGE_ZERO = 0.05
-PERCENTAGE_NONZERO = 0.02
+PERCENTAGE_NONZERO = 0.01
 DISCRETE_RANGE = 10
 ITERATIONS = 200
 ALPHA = 0.8
@@ -53,8 +54,7 @@ def label_propagation(graph: nk.Graph, max_iterations: int) -> nk.Graph:
                 unlabelled[edge] = True
         state_probs[graph.edgeId(*edge)] = vec
 
-    for i in range(max_iterations):
-        print(f"Iteration {i}")
+    for i in tqdm(range(max_iterations)):
         prev_vecs = [state_probs[graph.edgeId(*edge)].copy() for edge in graph.iterEdges()]
         for edge, value in unlabelled.items():
             if value:
@@ -70,13 +70,16 @@ def label_propagation(graph: nk.Graph, max_iterations: int) -> nk.Graph:
         state[edge] = int(np.argmax(state_probs[graph.edgeId(*edge)]))
 
 
-if __name__ == "__main__":
-    graph: nk.Graph = load_nk_graph("Bergedorf-Hamburg-Germany", "instances")
-    load_geometry(graph, "Bergedorf-Hamburg-Germany", "instances")
+def run(graph_name: str, instance_dir: str):
+    graph: nk.Graph = load_nk_graph(graph_name, instance_dir)
+    load_geometry(graph, graph_name, instance_dir)
     graph.indexEdges()
     label_propagation(graph, ITERATIONS)
-    # nk.vizbridges.widgetFromGraph(graph, dimension=nk.vizbridges.Dimension.TwoForcePlotly,
-    #                               edgeAttributes=[("state", int)]).show()
     plot_graph(graph).plot(column="state", legend=True).get_figure().show()
     # make lines thicker
     (plot_graph(graph).explore(column="state", tiles="CartoDB Positron", style_kwds={"weight": 5}).show_in_browser())
+
+
+if __name__ == "__main__":
+    # run("Bergedorf-Hamburg-Germany", "instances")
+    run("Spandau-Berlin-Germany", "instances")
